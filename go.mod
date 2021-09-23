@@ -1,4 +1,4 @@
-module github.com/galiov-w/mi-deploy/mi-deploy-service
+module github.com/galiov-w/mi-deploy/mideploy
 
 go 1.17
 
@@ -11,7 +11,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.1.0 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420 // indirect
-	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f // indirect
+	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/sys v0.0.0-20210908233432-aa78b53d3365 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
