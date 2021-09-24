@@ -1,4 +1,4 @@
-module github.com/galiov-w/mi-deploy/mideploy
+module github.com/galiov-w/mi-deploy
 
 go 1.17
 

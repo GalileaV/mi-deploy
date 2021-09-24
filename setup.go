@@ -1,12 +1,12 @@
 package mideploy
 
 import (
-	"fmt"
+	"context"
+	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 
-	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/cloudbuild/v1"
 	"google.golang.org/api/option"
 )
@@ -16,39 +16,34 @@ var (
 	slackSecret     string
 	projectId       string
 	triggerId       string
+	environment     string
+	scopes          []string
+	aud             string
 )
 
-func setup(r *http.Request) {
+func setup(ctx context.Context) {
 	slackSecret = os.Getenv("SLACK_SIGN_IN_SECRET")
 	projectId = os.Getenv("PROJECT_ID")
 	triggerId = os.Getenv("TRIGGER_ID")
+	environment = os.Getenv("ENVIRONMENT")
 
-	googleOauthConfig := &oauth2.Config{
-		ClientID:     os.Getenv("0AUTH_CLIENT_ID"),
-		ClientSecret: os.Getenv("0AUTH_CLIENT_SECRET"),
-		Scopes:       []string{"https://www.googleapis.com/auth/cloud-platform"},
-		RedirectURL:  os.Getenv("REDIRECT_URL"),
-		Endpoint: oauth2.Endpoint{
-			TokenURL: "https://oauth2.googleapis.com/token",
-			AuthURL:  "https://accounts.google.com/o/oauth2/auth",
-		},
-	}
-
-	ctx := r.Context()
-	url := googleOauthConfig.AuthCodeURL("state", oauth2.AccessTypeOffline)
-	fmt.Printf("Visit the URL for the auth dialog: %v", url)
-
-	code := r.FormValue("code")
-	if _, err := fmt.Scan(&code); err != nil {
-		log.Fatal(err)
-	}
-	token, err := googleOauthConfig.Exchange(ctx, code)
+	prvKey, err := ioutil.ReadFile("serverless_function_source_code/misalud-development-cb.json")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
+
+	scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
+	aud = "https://oauth2.googleapis.com/token"
+
+	conf, err := google.JWTConfigFromJSON(prvKey, scopes...)
+	if err != nil {
+		log.Fatalf("Unable to generate token source: %v", err)
+	}
+
+	conf.Audience = aud
 
 	if triggersService == nil {
-		cloudbuildService, err := cloudbuild.NewService(ctx, option.WithTokenSource(googleOauthConfig.TokenSource(ctx, token)))
+		cloudbuildService, err := cloudbuild.NewService(ctx, option.WithTokenSource(conf.TokenSource(ctx)))
 		if err != nil {
 			log.Fatalf("cloudbuild.NewService: %v", err)
 		}

@@ -48,7 +48,7 @@ type Message struct {
 }
 
 func MiDeploy(w http.ResponseWriter, r *http.Request) {
-	setup(r)
+	setup(r.Context())
 
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -77,17 +77,19 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 	if len(r.Form["text"]) == 0 {
 		log.Fatalf("empty text in form")
 	}
-	deploymentResponse, err := runTrigger(r.Form["text"][0])
+
+	deploymentResponse, err := runTrigger(r.Form["text"][0], r.Form["user_name"][0])
 	if err != nil {
 		log.Fatalf("runTrigger: %v", err)
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	if err = json.NewEncoder(w).Encode(deploymentResponse); err != nil {
 		log.Fatalf("json.Marshal: %v", err)
 	}
 }
 
-func runTrigger(branchName string) (*Message, error) {
+func runTrigger(branchName string, author string) (*Message, error) {
 	values := cloudbuild.RepoSource{
 		BranchName: branchName,
 	}
@@ -96,7 +98,12 @@ func runTrigger(branchName string) (*Message, error) {
 		return nil, fmt.Errorf("do: %v", err)
 	}
 
-	return formatSlackMessage(branchName, res)
+	// resServer, err := triggersService.Run(projectId, triggerId, &values).Do()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("do: %v", err)
+	// }
+
+	return formatSlackMessage(branchName, author, res)
 }
 
 // verifyWebHook verifies the request signature.
