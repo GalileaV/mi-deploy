@@ -2,23 +2,24 @@ package mideploy
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 
+	cloudbuild "cloud.google.com/go/cloudbuild/apiv1"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/api/cloudbuild/v1"
 	"google.golang.org/api/option"
 )
 
 var (
-	triggersService *cloudbuild.ProjectsTriggersService
-	slackSecret     string
-	projectId       string
-	triggerId       string
-	environment     string
-	scopes          []string
-	aud             string
+	cloudbuildClient *cloudbuild.Client
+	slackSecret      string
+	projectId        string
+	triggerId        string
+	environment      string
+	scopes           []string
+	aud              string
 )
 
 func setup(ctx context.Context) {
@@ -27,7 +28,8 @@ func setup(ctx context.Context) {
 	triggerId = os.Getenv("TRIGGER_ID")
 	environment = os.Getenv("ENVIRONMENT")
 
-	prvKey, err := ioutil.ReadFile("serverless_function_source_code/misalud-development-cb.json")
+	path := fmt.Sprintf("serverless_function_source_code/misalud-%s-cb.json", environment)
+	prvKey, err := ioutil.ReadFile(path)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -42,11 +44,10 @@ func setup(ctx context.Context) {
 
 	conf.Audience = aud
 
-	if triggersService == nil {
-		cloudbuildService, err := cloudbuild.NewService(ctx, option.WithTokenSource(conf.TokenSource(ctx)))
+	if cloudbuildClient == nil {
+		cloudbuildClient, err = cloudbuild.NewClient(ctx, option.WithTokenSource(conf.TokenSource(ctx)))
 		if err != nil {
 			log.Fatalf("cloudbuild.NewService: %v", err)
 		}
-		triggersService = cloudbuild.NewProjectsTriggersService(cloudbuildService)
 	}
 }

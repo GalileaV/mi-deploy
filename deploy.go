@@ -2,6 +2,7 @@ package mideploy
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,20 +11,11 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
-	"google.golang.org/api/cloudbuild/v1"
+	cloudbuildpb "google.golang.org/genproto/googleapis/devtools/cloudbuild/v1"
 )
-
-type oldTimeStampError struct {
-	s string
-}
-
-func (e *oldTimeStampError) Error() string {
-	return e.s
-}
 
 const (
 	version                     = "v0"
@@ -56,9 +48,6 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
 
-	if r.Method != "POST" {
-		http.Error(w, "Only POST requests are accepted", http.StatusMethodNotAllowed)
-	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Couldn't parse form", 400)
 		log.Fatalf("ParseForm: %v", err)
@@ -78,7 +67,7 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("empty text in form")
 	}
 
-	deploymentResponse, err := runTrigger(r.Form["text"][0], r.Form["user_name"][0])
+	deploymentResponse, err := runTrigger(r.Context(), r.Form["text"][0], r.Form["user_name"][0])
 	if err != nil {
 		log.Fatalf("runTrigger: %v", err)
 	}
@@ -89,21 +78,31 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func runTrigger(branchName string, author string) (*Message, error) {
-	values := cloudbuild.RepoSource{
+func runTrigger(ctx context.Context, branchName string, author string) (*Message, error) {
+	t := time.Now()
+	defer func() {
+		t2 := time.Since(t)
+		log.Println("the runTrigger function take", t2)
+	}()
+
+	values := cloudbuildpb.RepoSource_BranchName{
 		BranchName: branchName,
 	}
-	res, err := triggersService.Run(projectId, triggerId, &values).Do()
+	reposource := cloudbuildpb.RepoSource{
+		Revision: &values,
+	}
+	req := &cloudbuildpb.RunBuildTriggerRequest{
+		ProjectId: projectId,
+		TriggerId: triggerId,
+		Source:    &reposource,
+	}
+
+	resp, err := cloudbuildClient.RunBuildTrigger(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("do: %v", err)
 	}
 
-	// resServer, err := triggersService.Run(projectId, triggerId, &values).Do()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("do: %v", err)
-	// }
-
-	return formatSlackMessage(branchName, author, res)
+	return formatSlackMessage(branchName, strings.Title(author), resp)
 }
 
 // verifyWebHook verifies the request signature.
@@ -111,15 +110,6 @@ func runTrigger(branchName string, author string) (*Message, error) {
 func verifyWebHook(r *http.Request, slackSigningSecret string) (bool, error) {
 	timeStamp := r.Header.Get(slackRequestTimestampHeader)
 	slackSignature := r.Header.Get(slackSignatureHeader)
-
-	t, err := strconv.ParseInt(timeStamp, 10, 64)
-	if err != nil {
-		return false, fmt.Errorf("strconv.ParseInt(%s): %v", timeStamp, err)
-	}
-
-	if ageOk, age := checkTimestamp(t); !ageOk {
-		return false, &oldTimeStampError{fmt.Sprintf("checkTimestamp(%v): %v %v", t, ageOk, age)}
-	}
 
 	if timeStamp == "" || slackSignature == "" {
 		return false, fmt.Errorf("either timeStamp or signature headers were blank")
@@ -152,11 +142,4 @@ func getSignature(base []byte, secret []byte) []byte {
 	h.Write(base)
 
 	return h.Sum(nil)
-}
-
-// Arbitrarily trusting requests time stamped less than 5 minutes ago.
-func checkTimestamp(timeStamp int64) (bool, time.Duration) {
-	t := time.Since(time.Unix(timeStamp, 0))
-
-	return t.Minutes() <= 5, t
 }
