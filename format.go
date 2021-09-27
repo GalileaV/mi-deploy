@@ -3,16 +3,11 @@ package mideploy
 import (
 	"fmt"
 	"strings"
-
-	longrunningpb "google.golang.org/genproto/googleapis/longrunning"
 )
 
-func formatSlackMessage(branchName string, author string, response *longrunningpb.Operation) (*Message, error) {
-	if response == nil {
-		return nil, fmt.Errorf("empty response")
-	}
+func formatSlackMessage(branchName string, author string) (*Message, error) {
 	environmentTitle := strings.ToUpper(environment)
-	attach := attachment{Color: "#3367d6", Text: fmt.Sprintf("*%s* is deploying %s to %s :deploy_now:", author, branchName, environmentTitle)}
+	attach := attachment{Color: "#3367d6", Text: fmt.Sprintf("Deploying *%s* to %s :deploy_now:", branchName, environmentTitle)}
 
 	message := &Message{
 		ResponseType: "in_channel",

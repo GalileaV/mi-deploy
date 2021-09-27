@@ -67,24 +67,38 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("empty text in form")
 	}
 
-	deploymentResponse, err := runTrigger(r.Context(), r.Form["text"][0], r.Form["user_name"][0])
+	branchName := r.Form["text"][0]
+
+	sendSlackMessage(w, branchName, strings.Title(r.Form["user_name"][0]))
+	runTrigger(branchName)
+}
+
+func sendSlackMessage(w http.ResponseWriter, branchName string, author string) {
+	t := time.Now()
+	defer func() {
+		t2 := time.Since(t)
+		log.Println("sendSlackMessage function take", t2)
+	}()
+
+	message, err := formatSlackMessage(branchName, author)
 	if err != nil {
-		log.Fatalf("runTrigger: %v", err)
+		log.Println("message unavailable")
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err = json.NewEncoder(w).Encode(deploymentResponse); err != nil {
+	if err = json.NewEncoder(w).Encode(message); err != nil {
 		log.Fatalf("json.Marshal: %v", err)
 	}
 }
 
-func runTrigger(ctx context.Context, branchName string, author string) (*Message, error) {
+func runTrigger(branchName string) {
 	t := time.Now()
 	defer func() {
 		t2 := time.Since(t)
 		log.Println("the runTrigger function take", t2)
 	}()
 
+	ctx := context.Background()
 	values := cloudbuildpb.RepoSource_BranchName{
 		BranchName: branchName,
 	}
@@ -99,10 +113,12 @@ func runTrigger(ctx context.Context, branchName string, author string) (*Message
 
 	resp, err := cloudbuildClient.RunBuildTrigger(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("do: %v", err)
+		log.Fatalf("do: %v", err)
 	}
-
-	return formatSlackMessage(branchName, strings.Title(author), resp)
+	if resp == nil {
+		log.Fatalf("empty response")
+	}
+	log.Printf("Trigger response %v", resp)
 }
 
 // verifyWebHook verifies the request signature.
