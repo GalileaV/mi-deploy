@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -55,6 +56,13 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 
 	// Reset r.Body as ParseForm depletes it by reading the io.ReadCloser.
 	r.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	if r.Form["team_domain"][0] == "misaludworkspace" {
+		slackSecret = os.Getenv("SLACK_SIGN_IN_SECRET")
+	} else {
+		slackSecret = os.Getenv("EXTERNAL_SIGN_IN_SECRET")
+	}
+
 	result, err := verifyWebHook(r, slackSecret)
 	if err != nil {
 		log.Fatalf("verifyWebhook: %v", err)

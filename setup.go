@@ -23,7 +23,6 @@ var (
 )
 
 func setup(ctx context.Context) {
-	slackSecret = os.Getenv("SLACK_SIGN_IN_SECRET")
 	projectId = os.Getenv("PROJECT_ID")
 	triggerId = os.Getenv("TRIGGER_ID")
 	environment = os.Getenv("ENVIRONMENT")
