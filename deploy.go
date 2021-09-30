@@ -77,11 +77,11 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 
 	branchName := r.Form["text"][0]
 
-	sendSlackMessage(w, branchName, strings.Title(r.Form["user_name"][0]))
+	sendSlackMessage(w, r.Form["response_url"][0], branchName, strings.Title(r.Form["user_name"][0]))
 	runTrigger(branchName)
 }
 
-func sendSlackMessage(w http.ResponseWriter, branchName string, author string) {
+func sendSlackMessage(w http.ResponseWriter, response_url string, branchName string, author string) {
 	t := time.Now()
 	defer func() {
 		t2 := time.Since(t)
@@ -93,10 +93,29 @@ func sendSlackMessage(w http.ResponseWriter, branchName string, author string) {
 		log.Println("message unavailable")
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err = json.NewEncoder(w).Encode(message); err != nil {
-		log.Fatalf("json.Marshal: %v", err)
+	client := &http.Client{Timeout: 10 * time.Second}
+	jsonData, err := json.Marshal(message)
+	if err != nil {
+		log.Fatalf("Error Occurred jsonData. %+v", err)
 	}
+
+	req, err := http.NewRequest(http.MethodPost, response_url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Fatalf("Error Occurred with slack request, line 104. %+v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	response, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("Error sending request to Slack endpoint. %+v", err)
+	}
+	defer response.Body.Close()
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Fatalf("Couldn't parse response body. %+v", err)
+	}
+	log.Println("Slack message, response Body:", string(body))
 }
 
 func runTrigger(branchName string) {
