@@ -75,24 +75,18 @@ func MiDeploy(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("empty text in form")
 	}
 
-	branchName := r.Form["text"][0]
+	response_url = r.Form["response_url"][0]
+	branchName = r.Form["text"][0]
 
-	sendSlackMessage(w, r.Form["response_url"][0], branchName, strings.Title(r.Form["user_name"][0]))
-	runTrigger(branchName)
+	message := &Message{
+		ResponseType: "ephemeral",
+		Text:         "_Request received_ :cat-typing:",
+	}
+	sendSlackMessage(message)
+	runTrigger(strings.Title(r.Form["user_name"][0]))
 }
 
-func sendSlackMessage(w http.ResponseWriter, response_url string, branchName string, author string) {
-	t := time.Now()
-	defer func() {
-		t2 := time.Since(t)
-		log.Println("sendSlackMessage function take", t2)
-	}()
-
-	message, err := formatSlackMessage(branchName, author)
-	if err != nil {
-		log.Println("message unavailable")
-	}
-
+func sendSlackMessage(message *Message) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	jsonData, err := json.Marshal(message)
 	if err != nil {
@@ -118,7 +112,7 @@ func sendSlackMessage(w http.ResponseWriter, response_url string, branchName str
 	log.Println("Slack message, response Body:", string(body))
 }
 
-func runTrigger(branchName string) {
+func runTrigger(author string) {
 	t := time.Now()
 	defer func() {
 		t2 := time.Since(t)
@@ -140,12 +134,22 @@ func runTrigger(branchName string) {
 
 	resp, err := cloudbuildClient.RunBuildTrigger(ctx, req)
 	if err != nil {
-		log.Fatalf("do: %v", err)
+		message := &Message{
+			ResponseType: "ephemeral",
+			Text:         fmt.Sprintf(":warning: Something went wrong trying to run the trigger. :warning:\nWe couldn't find the *%s* branch. Please, review the spelling and try again.", branchName),
+		}
+		sendSlackMessage(message)
+		log.Printf("Error running trigger: %v", err)
+	} else if resp == nil {
+		log.Printf("empty response")
+	} else {
+		message, err := formatSlackMessage(author)
+		if err != nil {
+			log.Println("message unavailable")
+		}
+		sendSlackMessage(message)
+		log.Printf("Trigger response %v", resp)
 	}
-	if resp == nil {
-		log.Fatalf("empty response")
-	}
-	log.Printf("Trigger response %v", resp)
 }
 
 // verifyWebHook verifies the request signature.

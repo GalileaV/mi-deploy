@@ -20,6 +20,8 @@ var (
 	environment      string
 	scopes           []string
 	aud              string
+	response_url     string
+	branchName       string
 )
 
 func setup(ctx context.Context) {

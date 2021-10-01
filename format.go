@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func formatSlackMessage(branchName string, author string) (*Message, error) {
+func formatSlackMessage(author string) (*Message, error) {
 	environmentTitle := strings.ToUpper(environment)
 	attach := attachment{Color: "#3367d6", Text: fmt.Sprintf("Deploying *%s* to %s :deploy-now:", branchName, environmentTitle)}
 
